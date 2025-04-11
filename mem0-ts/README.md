@@ -6,9 +6,11 @@ This is a fork of the [Mem0 repository](https://github.com/mem0ai/mem0) by Mem0A
 
 To enable Mem0 to run on Cloudflare Workers, the [NodeJS implementation](https://docs.mem0.ai/open-source/node-quickstart) required significant changes to its SQLite-based components. The following modifications were made:
 
+- **Code Structure**: The original NodeJS implementation code in `mem0-ts/src/oss` was duplicated into `mem0-ts/src/oss-cfworker`, and all Cloudflare Workers-specific changes were applied in the `oss-cfworker` directory.
 - **In-Memory Vector Database**: The NodeJS implementation used SQLite for an [in-memory vector database](https://docs.mem0.ai/components/vectordbs/config) to store and query vectors. The Cloudflare Workers implementation replaces it with a dedicated [Cloudflare Agent](https://developers.cloudflare.com/agents/), utilizing the [SQLite API](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api) provided by [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/). This ensures vector storage and retrieval are compatible with Cloudflare's serverless environment.
 - **History Store**: The [history store](https://docs.mem0.ai/open-source/node-quickstart#history-store), which also relied on SQLite to persist historical data, has been reimplemented using a separate [Cloudflare Agent](https://developers.cloudflare.com/agents/) with its own [SQLite storage](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api). This maintains the history store's functionality while adhering to Cloudflare Workers' runtime constraints.
 - **Preserved Core Functionality**: Beyond these database changes, the core logic and features of the NodeJS implementation remain intact, ensuring the Cloudflare Workers implementation delivers the same capabilities as the original, adapted for Cloudflare's infrastructure.
+- **Future Improvements**: The current Cloudflare Workers implementation is a preliminary adaptation. A much better implementation is planned for the near future to enhance performance and integration.
 
 These changes are specific to this fork and tailored for Cloudflare Workers compatibility, making them unlikely to be integrated into the main Mem0 repository.
 
@@ -33,11 +35,11 @@ The original NodeJS implementation used SQLite for the vector store. Here’s th
 ```javascript
 const configMemory = {
   vectorStore: {
-    provider: 'memory',
-    config: {
-      collectionName: 'memories',
-      dimension: 1536,
-    },
+	provider: 'memory',
+	config: {
+	  collectionName: 'memories',
+	  dimension: 1536,
+	},
   },
 };
 ```
@@ -55,12 +57,12 @@ export interface Env {
 // In your Cloudflare Worker
 const configMemory = {
   vectorStore: {
-    provider: "memory",
-    config: {
-      collectionName: 'memories', // Can be any name; used as the Cloudflare Agent ID
-      dimension: 1536,
-      agentBinding: this.env.MEMORY_AGENT,
-    },
+	provider: "memory",
+	config: {
+	  collectionName: 'memories', // Can be any name; used as the Cloudflare Agent ID
+	  dimension: 1536,
+	  agentBinding: this.env.MEMORY_AGENT,
+	},
   },
 };
 ```
@@ -72,10 +74,10 @@ The original NodeJS implementation used SQLite for the history store. Here’s t
 ```javascript
 const configMemory = {
   historyStore: {
-    provider: 'sqlite',
-    config: {
-      historyDbPath: "memory.db",
-    },
+	provider: 'sqlite',
+	config: {
+	  historyDbPath: "memory.db",
+	},
   },
   historyDbPath: "memory.db", // Optional default
 };
@@ -94,11 +96,11 @@ export interface Env {
 // In your Cloudflare Worker
 const configMemory = {
   historyStore: {
-    provider: 'cfagent',
-    config: {
-      agentBinding: this.env.HISTORY_AGENT,
-      agentHistoryName: "memory_history", // Can be any name; used as the Cloudflare Agent ID
-    },
+	provider: 'cfagent',
+	config: {
+	  agentBinding: this.env.HISTORY_AGENT,
+	  agentHistoryName: "memory_history", // Can be any name; used as the Cloudflare Agent ID
+	},
   },
 };
 ```
@@ -111,25 +113,25 @@ To enable Cloudflare Agents, you must configure Durable Objects in your Cloudfla
 {
   "name": "my-worker",
   "durable_objects": {
-    "bindings": [
-      {
-        "name": "MEMORY_AGENT",
-        "class_name": "CfMemoryAgent" # Must be exactly this name
-      },
-      {
-        "name": "HISTORY_AGENT",
-        "class_name": "CfHistoryManagerAgent" # Must be exactly this name
-      }
-    ]
+	"bindings": [
+	  {
+		"name": "MEMORY_AGENT",
+		"class_name": "CfMemoryAgent" # Must be exactly this name
+	  },
+	  {
+		"name": "HISTORY_AGENT",
+		"class_name": "CfHistoryManagerAgent" # Must be exactly this name
+	  }
+	]
   },
   "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": [
-        "CfMemoryAgent",
-        "CfHistoryManagerAgent"
-      ]
-    }
+	{
+	  "tag": "v1",
+	  "new_sqlite_classes": [
+		"CfMemoryAgent",
+		"CfHistoryManagerAgent"
+	  ]
+	}
   ]
 }
 ```

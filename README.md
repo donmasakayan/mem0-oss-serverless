@@ -1,189 +1,159 @@
-<p align="center">
-  <a href="https://github.com/mem0ai/mem0">
-  <img src="docs/images/banner-sm.png" width="800px" alt="Mem0 - The Memory Layer for Personalized AI">
-  </a>
-<p align="center" style="display: flex; justify-content: center; gap: 20px; align-items: center;">
-  <a href="https://trendshift.io/repositories/11194" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/11194" alt="mem0ai%2Fmem0 | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
-  </a>
-  <a href="https://www.ycombinator.com/launches/LpA-mem0-open-source-memory-layer-for-ai-apps" target="_blank">
-    <img alt="Launch YC: Mem0 - Open Source Memory Layer for AI Apps" src="https://www.ycombinator.com/launches/LpA-mem0-open-source-memory-layer-for-ai-apps/upvote_embed.svg"/>
-  </a>
-</p>
+# Mem0 for Cloudflare Workers
 
+This is a fork of the [Mem0 repository](https://github.com/mem0ai/mem0) by Mem0AI, created to provide a **Cloudflare Workers implementation** of Mem0, based on the original **NodeJS implementation** ([NodeJS quickstart](https://docs.mem0.ai/open-source/node-quickstart)). The original Mem0 project includes both Python and NodeJS versions; this fork modifies only the NodeJS version to enable compatibility with [Cloudflare Workers](https://workers.cloudflare.com/). The NodeJS implementation relied on SQLite in two components, which were incompatible with Cloudflare Workers due to the use of the `sqlite3` library. This fork replaces those with [Cloudflare Agents](https://developers.cloudflare.com/agents/), a change specific to this repo and unlikely to be merged into the main project. Separately, this fork includes additional LLM support not originally present in the NodeJS implementation, though these enhancements may be contributed to the main Mem0 project and could be removed from this fork in the future.
 
-  <p align="center">
-    <a href="https://mem0.ai">Learn more</a>
-    ·
-    <a href="https://mem0.dev/DiG">Join Discord</a>
-    ·
-    <a href="https://mem0.dev/demo">Demo</a>
-  </p>
-</p>
+## Cloudflare Workers Implementation
 
-<p align="center">
-  <a href="https://mem0.dev/DiG">
-    <img src="https://dcbadge.vercel.app/api/server/6PzXDgEjG5?style=flat" alt="Mem0 Discord">
-  </a>
-  <a href="https://pepy.tech/project/mem0ai">
-    <img src="https://img.shields.io/pypi/dm/mem0ai" alt="Mem0 PyPI - Downloads" >
-  </a>
-  <a href="https://github.com/mem0ai/mem0">
-    <img src="https://img.shields.io/github/commit-activity/m/mem0ai/mem0?style=flat-square" alt="GitHub commit activity">
-  </a>
-  <a href="https://pypi.org/project/mem0ai" target="_blank">
-        <img src="https://img.shields.io/pypi/v/mem0ai?color=%2334D058&label=pypi%20package" alt="Package version">
-    </a>
-    <a href="https://www.npmjs.com/package/mem0ai" target="_blank">
-        <img src="https://img.shields.io/npm/v/mem0ai" alt="Npm package">
-    </a>
-  <a href="https://www.ycombinator.com/companies/mem0">
-    <img src="https://img.shields.io/badge/Y%20Combinator-S24-orange?style=flat-square" alt="Y Combinator S24">
-  </a>
-</p>
+To enable Mem0 to run on Cloudflare Workers, the [NodeJS implementation](https://docs.mem0.ai/open-source/node-quickstart) required significant changes to its SQLite-based components. The following modifications were made:
 
+- **Code Structure**: The original NodeJS implementation code in `mem0-ts/src/oss` was duplicated into `mem0-ts/src/oss-cfworker`, and all Cloudflare Workers-specific changes were applied in the `oss-cfworker` directory.
+- **In-Memory Vector Database**: The NodeJS implementation used SQLite for an [in-memory vector database](https://docs.mem0.ai/components/vectordbs/config) to store and query vectors. The Cloudflare Workers implementation replaces it with a dedicated [Cloudflare Agent](https://developers.cloudflare.com/agents/), utilizing the [SQLite API](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api) provided by [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/). This ensures vector storage and retrieval are compatible with Cloudflare's serverless environment.
+- **History Store**: The [history store](https://docs.mem0.ai/open-source/node-quickstart#history-store), which also relied on SQLite to persist historical data, has been reimplemented using a separate [Cloudflare Agent](https://developers.cloudflare.com/agents/) with its own [SQLite storage](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api). This maintains the history store's functionality while adhering to Cloudflare Workers' runtime constraints.
+- **Preserved Core Functionality**: Beyond these database changes, the core logic and features of the NodeJS implementation remain intact, ensuring the Cloudflare Workers implementation delivers the same capabilities as the original, adapted for Cloudflare's infrastructure.
+- **Future Improvements**: The current Cloudflare Workers implementation is a preliminary adaptation. A much better implementation is planned for the near future to enhance performance and integration.
 
-# Introduction
+These changes are specific to this fork and tailored for Cloudflare Workers compatibility, making them unlikely to be integrated into the main Mem0 repository.
 
-[Mem0](https://mem0.ai) (pronounced as "mem-zero") enhances AI assistants and agents with an intelligent memory layer, enabling personalized AI interactions. Mem0 remembers user preferences, adapts to individual needs, and continuously improves over time, making it ideal for customer support chatbots, AI assistants, and autonomous systems.
+## Additional LLM Support
 
-### Features & Use Cases
+In addition to the Cloudflare Workers-specific changes, this fork introduces support for LLMs that were not available in the NodeJS implementation as of April 11, 2025, but were supported in the Python version. These additions may be contributed to the main Mem0 project, and if merged there, they could be removed from this fork to focus solely on the Cloudflare Workers implementation. The added LLM support includes:
 
-Core Capabilities:
-- **Multi-Level Memory**: User, Session, and AI Agent memory retention with adaptive personalization
-- **Developer-Friendly**: Simple API integration, cross-platform consistency, and hassle-free managed service
+- **Embedding Support**: Added support for [Together.ai](https://docs.mem0.ai/components/embedders/overview) for embedding tasks.
+- **LLM Support**: Added support for [LM Studio](https://docs.mem0.ai/components/llms/overview) for both normal and structured responses.
+- **Neo4j Graph Memory**: The LM Studio structured response implementation supports [Neo4j Graph Memory](https://docs.mem0.ai/open-source/graph_memory/overview).
 
-Applications:
-- **AI Assistants**: Seamless conversations with context and personalization
-- **Learning & Support**: Tailored content recommendations and context-aware customer assistance
-- **Healthcare & Companions**: Patient history tracking and deeper relationship building
-- **Productivity & Gaming**: Streamlined workflows and adaptive environments based on user behavior
+**Note**: These LLM enhancements align the NodeJS version with features already present in the Python version. If these changes are incorporated into the main Mem0 repository, this fork may discontinue maintaining them to focus exclusively on Cloudflare Workers compatibility.
 
-## Get Started
+## Using the Cloudflare Workers Implementation
 
-Get started quickly with [Mem0 Platform](https://app.mem0.ai) - our fully managed solution that provides automatic updates, advanced analytics, enterprise security, and dedicated support. [Create a free account](https://app.mem0.ai) to begin.
+To use the Cloudflare Workers implementation, you need to configure the vector store and history store to use [Cloudflare Agents](https://developers.cloudflare.com/agents/) instead of SQLite, and set up your Cloudflare Worker environment with the necessary Durable Objects bindings. Below are the steps to update your configuration and deploy the application.
 
-For complete control, you can self-host Mem0 using our open-source package. See the [Quickstart guide](#quickstart) below to set up your own instance.
+### Vector Store Configuration
 
-## Quickstart Guide <a name="quickstart"></a>
+The original NodeJS implementation used SQLite for the vector store. Here’s the old configuration:
 
-Install the Mem0 package via pip:
-
-```bash
-pip install mem0ai
+```javascript
+const configMemory = {
+  vectorStore: {
+    provider: 'memory',
+    config: {
+      collectionName: 'memories',
+      dimension: 1536,
+    },
+  },
+};
 ```
 
-Install the Mem0 package via npm:
+In the Cloudflare Workers implementation, the vector store uses a Cloudflare Agent. Update your configuration as follows:
 
-```bash
-npm install mem0ai
+```javascript
+import type { AgentNamespace } from "agents";
+import type { CfMemoryAgent } from "mem0ai-oss-cfworker";
+
+export interface Env {
+  MEMORY_AGENT: AgentNamespace<CfMemoryAgent>;
+}
+
+// In your Cloudflare Worker
+const configMemory = {
+  vectorStore: {
+    provider: "memory",
+    config: {
+      collectionName: 'memories', // Can be any name; used as the Cloudflare Agent ID
+      dimension: 1536,
+      agentBinding: this.env.MEMORY_AGENT,
+    },
+  },
+};
 ```
 
-### Basic Usage
+### History Store Configuration
 
-Mem0 requires an LLM to function, with `gpt-4o-mini` from OpenAI as the default. However, it supports a variety of LLMs; for details, refer to our [Supported LLMs documentation](https://docs.mem0.ai/llms).
+The original NodeJS implementation used SQLite for the history store. Here’s the old configuration:
 
-First step is to instantiate the memory:
-
-```python
-from openai import OpenAI
-from mem0 import Memory
-
-openai_client = OpenAI()
-memory = Memory()
-
-def chat_with_memories(message: str, user_id: str = "default_user") -> str:
-    # Retrieve relevant memories
-    relevant_memories = memory.search(query=message, user_id=user_id, limit=3)
-    memories_str = "\n".join(f"- {entry['memory']}" for entry in relevant_memories["results"])
-    
-    # Generate Assistant response
-    system_prompt = f"You are a helpful AI. Answer the question based on query and memories.\nUser Memories:\n{memories_str}"
-    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]
-    response = openai_client.chat.completions.create(model="gpt-4o-mini", messages=messages)
-    assistant_response = response.choices[0].message.content
-
-    # Create new memories from the conversation
-    messages.append({"role": "assistant", "content": assistant_response})
-    memory.add(messages, user_id=user_id)
-
-    return assistant_response
-
-def main():
-    print("Chat with AI (type 'exit' to quit)")
-    while True:
-        user_input = input("You: ").strip()
-        if user_input.lower() == 'exit':
-            print("Goodbye!")
-            break
-        print(f"AI: {chat_with_memories(user_input)}")
-
-if __name__ == "__main__":
-    main()
+```javascript
+const configMemory = {
+  historyStore: {
+    provider: 'sqlite',
+    config: {
+      historyDbPath: "memory.db",
+    },
+  },
+  historyDbPath: "memory.db", // Optional default
+};
 ```
 
-See the example for [Node.js](https://docs.mem0.ai/examples/ai_companion_js).
+In the Cloudflare Workers implementation, the history store uses a separate Cloudflare Agent. Update your configuration as follows:
 
-For more advanced usage and API documentation, visit our [documentation](https://docs.mem0.ai).
+```javascript
+import type { AgentNamespace } from "agents";
+import type { CfHistoryManagerAgent } from "mem0ai-oss-cfworker";
 
-> [!TIP]
-> For a hassle-free experience, try our [hosted platform](https://app.mem0.ai) with automatic updates and enterprise features.
+export interface Env {
+  HISTORY_AGENT: AgentNamespace<CfHistoryManagerAgent>;
+}
 
-## Demos
+// In your Cloudflare Worker
+const configMemory = {
+  historyStore: {
+    provider: 'cfagent',
+    config: {
+      agentBinding: this.env.HISTORY_AGENT,
+      agentHistoryName: "memory_history", // Can be any name; used as the Cloudflare Agent ID
+    },
+  },
+};
+```
 
-- Mem0 - ChatGPT with Memory: A personalized AI chat app powered by Mem0 that remembers your preferences, facts, and memories.
+### Cloudflare Worker Environment Setup
 
-[Mem0 - ChatGPT with Memory](https://github.com/user-attachments/assets/cebc4f8e-bdb9-4837-868d-13c5ab7bb433)
+To enable Cloudflare Agents, you must configure Durable Objects in your Cloudflare Worker’s `wrangler.toml` or `wrangler.jsonc` file. Add the following:
 
-Try live [demo](https://mem0.dev/demo/)
+```toml
+{
+  "name": "my-worker",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MEMORY_AGENT",
+        "class_name": "CfMemoryAgent" # Must be exactly this name
+      },
+      {
+        "name": "HISTORY_AGENT",
+        "class_name": "CfHistoryManagerAgent" # Must be exactly this name
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "CfMemoryAgent",
+        "CfHistoryManagerAgent"
+      ]
+    }
+  ]
+}
+```
 
-<br/><br/>
+- **Durable Objects Configuration**: The `durable_objects.bindings` section defines the bindings for the vector store (`MEMORY_AGENT`) and history store (`HISTORY_AGENT`), linking to the specific agent classes (`CfMemoryAgent` and `CfHistoryManagerAgent`). For more details, see the [Cloudflare Agents configuration documentation](https://developers.cloudflare.com/agents/api-reference/configuration/).
+- **Migrations**: The `migrations` section registers the SQLite-based agent classes for use with Durable Objects. For more information on managing migrations, refer to the [Cloudflare Durable Objects migrations documentation](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/).
 
-- AI Companion: Experience personalized conversations with an AI that remembers your preferences and past interactions
+Ensure your Worker is deployed with these configurations to enable the Cloudflare Agents for both the vector store and history store.
 
-[AI Companion Demo](https://github.com/user-attachments/assets/3fc72023-a72c-4593-8be0-3cee3ba744da)
+## Getting Started
 
-<br/><br/>
+For detailed instructions on how to use Mem0, including its features, configuration, and APIs for both the Python and [NodeJS versions](https://docs.mem0.ai/open-source/node-quickstart), please refer to the [original Mem0 repository](https://github.com/mem0ai/mem0). The original README provides comprehensive guidance on setting up and using Mem0.
 
-- Enhance your AI interactions by storing memories across ChatGPT, Perplexity, and Claude using our browser extension. Get [chrome extension](https://chromewebstore.google.com/detail/mem0/onihkkbipkfeijkadecaafbgagkhglop?hl=en).
+## Contributing
 
-
-[Chrome Extension Demo](https://github.com/user-attachments/assets/ca92e40b-c453-4ff6-b25e-739fb18a8650)
-
-<br/><br/>
-
-- Customer support bot using <strong>Langgraph and Mem0</strong>. Get the complete code from [here](https://docs.mem0.ai/integrations/langgraph)
-
-
-[Langgraph: Customer Bot](https://github.com/user-attachments/assets/ca6b482e-7f46-42c8-aa08-f88d1d93a5f4)
-
-<br/><br/>
-
-- Use Mem0 with CrewAI to get personalized results. Full example [here](https://docs.mem0.ai/integrations/crewai)
-
-[CrewAI Demo](https://github.com/user-attachments/assets/69172a79-ccb9-4340-91f1-caa7d2dd4213)
-
-
-
-## Documentation
-
-For detailed usage instructions and API reference, visit our [documentation](https://docs.mem0.ai). You'll find:
-- Complete API reference
-- Integration guides
-- Advanced configuration options
-- Best practices and examples
-- More details about:
-  - Open-source version
-  - [Hosted Mem0 Platform](https://app.mem0.ai)
-
-## Support
-
-Join our community for support and discussions. If you have any questions, feel free to reach out to us using one of the following methods:
-
-- [Join our Discord](https://mem0.dev/DiG)
-- [Follow us on Twitter](https://x.com/mem0ai)
-- [Email founders](mailto:founders@mem0.ai)
+Contributions are welcome! For suggestions, bug reports, or improvements to the Cloudflare Workers implementation, please open an issue or submit a pull request. Contributions related to the additional LLM support may be better directed to the [main Mem0 repository](https://github.com/mem0ai/mem0), as those features could be merged there. Be sure to check the original repository’s contribution guidelines.
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+This fork is licensed under the same terms as the original Mem0 repository. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Thanks to the [Mem0AI team](https://github.com/mem0ai) for creating the original Mem0 project, including its Python and [NodeJS versions](https://docs.mem0.ai/open-source/node-quickstart).
+- Built with [Cloudflare Workers](https://workers.cloudflare.com/), [Cloudflare Agents](https://developers.cloudflare.com/agents/), and [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/).
