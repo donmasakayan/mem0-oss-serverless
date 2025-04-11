@@ -70,7 +70,7 @@ export class Memory {
       this.db = new DummyHistoryManager();
     } else {
       const defaultConfig = {
-        provider: "cfagent",
+        provider: "cloudflare",
         config: {
           agentHistoryName: this.config.agentHistoryName || "memory-history",
         },
@@ -82,7 +82,7 @@ export class Memory {
               this.config.historyStore.provider,
               this.config.historyStore,
             )
-          : HistoryManagerFactory.create("cfagent", defaultConfig);
+          : HistoryManagerFactory.create("cloudflare", defaultConfig);
     }
 
     this.collectionName = this.config.vectorStore.config.collectionName;
@@ -171,6 +171,8 @@ export class Memory {
       infer = true,
     } = config;
 
+    console.log("config", config);
+
     if (userId) filters.userId = metadata.userId = userId;
     if (agentId) filters.agentId = metadata.agentId = agentId;
     if (runId) filters.runId = metadata.runId = runId;
@@ -186,6 +188,8 @@ export class Memory {
       : [{ role: "user", content: messages }];
 
     const final_parsedMessages = await parse_vision_messages(parsedMessages);
+
+    console.log("final_parsedMessages", final_parsedMessages);
 
     // Add to vector store
     const vectorStoreResult = await this.addToVectorStore(
@@ -223,7 +227,7 @@ export class Memory {
     if (!infer) {
       const returnedMemories: MemoryItem[] = [];
       for (const message of messages) {
-        if (message.content === "system") {
+        if (message.role === "system") {
           continue;
         }
         const memoryId = await this.createMemory(
@@ -252,11 +256,30 @@ export class Memory {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { type: "json_object" },
+      { type: "json_object", jsonSchema: { 
+        name: "facts",
+        schema: {
+          type: "object",
+          properties: {
+            facts: {
+              type: "array",
+              items: {
+                type: "string"
+              }
+            }
+          }
+        }
+      } },
     );
 
+    console.log("memory response", response);
+
     const cleanResponse = removeCodeBlocks(response);
+
+    console.log("cleanResponse", cleanResponse);
     const facts = JSON.parse(cleanResponse).facts || [];
+
+    console.log("facts", facts);
 
     // Get embeddings for new facts
     const newMessageEmbeddings: Record<string, number[]> = {};
@@ -264,17 +287,24 @@ export class Memory {
 
     // Create embeddings and search for similar memories
     for (const fact of facts) {
+      console.log("embedding a fact", fact);
       const embedding = await this.embedder.embed(fact);
       newMessageEmbeddings[fact] = embedding;
+
+      console.log("this.vectorStore", this.vectorStore);
 
       const existingMemories = await this.vectorStore.search(
         embedding,
         5,
         filters,
       );
+
+      console.log("existingMemories", existingMemories);
       for (const mem of existingMemories) {
         retrievedOldMemory.push({ id: mem.id, text: mem.payload.data });
       }
+
+      console.log("retrievedOldMemory", retrievedOldMemory);
     }
 
     // Remove duplicates from old memories
@@ -283,6 +313,8 @@ export class Memory {
         retrievedOldMemory.findIndex((m) => m.id === mem.id) === index,
     );
 
+    console.log("uniqueOldMemories", uniqueOldMemories);
+
     // Create UUID mapping for handling UUID hallucinations
     const tempUuidMapping: Record<string, string> = {};
     uniqueOldMemories.forEach((item, idx) => {
@@ -290,12 +322,36 @@ export class Memory {
       uniqueOldMemories[idx].id = String(idx);
     });
 
+    console.log("tempUuidMapping", tempUuidMapping);
+
     // Get memory update decisions
     const updatePrompt = getUpdateMemoryMessages(uniqueOldMemories, facts);
     const updateResponse = await this.llm.generateResponse(
       [{ role: "user", content: updatePrompt }],
-      { type: "json_object" },
+      { type: "json_object", jsonSchema: { 
+        name: "memory",
+        schema: {
+          type: "object",
+          properties: {
+            memory: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  event: { type: "string" },
+                  id: { type: "string" },
+                  text: { type: "string" },
+                  old_memory: { type: "string" }
+                },
+                required: ["event", "id", "text", "old_memory"]
+              }
+            }
+          }
+        }
+      } },
     );
+
+    console.log("updateResponse", updateResponse);
 
     const cleanUpdateResponse = removeCodeBlocks(updateResponse);
     const memoryActions = JSON.parse(cleanUpdateResponse).memory || [];
@@ -316,6 +372,7 @@ export class Memory {
               memory: action.text,
               metadata: { event: action.event },
             });
+            console.log("memoryId", memoryId);
             break;
           }
           case "UPDATE": {
@@ -351,6 +408,7 @@ export class Memory {
         console.error(`Error processing memory action: ${error}`);
       }
     }
+    console.log("results", results);
 
     return results;
   }
@@ -421,6 +479,8 @@ export class Memory {
       limit,
       filters,
     );
+
+    console.log("MEMORIES", memories);
 
     // Search graph store if available
     let graphResults;

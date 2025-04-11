@@ -30,6 +30,7 @@ export class ConfigManager {
             userConfig.vectorStore?.config?.dimension ||
             DEFAULT_MEMORY_CONFIG.vectorStore.config.dimension,
           ...userConfig.vectorStore?.config,
+          config: userConfig.vectorStore?.config?.config || {},
         },
       },
       llm: {
@@ -42,6 +43,7 @@ export class ConfigManager {
           model:
             userConfig.llm?.config?.model ||
             DEFAULT_MEMORY_CONFIG.llm.config.model,
+          config: userConfig.llm?.config?.config || {},
         },
       },
       agentHistoryName:

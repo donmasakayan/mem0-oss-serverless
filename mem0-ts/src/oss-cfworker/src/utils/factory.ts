@@ -16,6 +16,7 @@ import { LLM } from "../llms/base";
 import { VectorStore } from "../vector_stores/base";
 import { Qdrant } from "../vector_stores/qdrant";
 import { RedisDB } from "../vector_stores/redis";
+import { CloudflareMemory } from "../vector_stores/cloudflare";
 import { OllamaLLM } from "../llms/ollama";
 import { SupabaseDB } from "../vector_stores/supabase";
 import { MemoryHistoryManager } from "../storage/MemoryHistoryManager";
@@ -23,9 +24,9 @@ import { SupabaseHistoryManager } from "../storage/SupabaseHistoryManager";
 import { HistoryManager } from "../storage/base";
 import { GoogleEmbedder } from "../embeddings/google";
 import { GoogleLLM } from "../llms/google";
-import { getAgentByName } from "agents";
 import { LmStudioLLM } from "../llms/lmstudio";
 import { LmStudioStructuredLLM } from "../llms/lmstudio_structured";
+import { CloudflareHistoryConfig, CloudflareHistoryManager } from "../storage";
 
 export class EmbedderFactory {
   static create(provider: string, config: EmbeddingConfig): Embedder {
@@ -72,14 +73,8 @@ export class LLMFactory {
 export class VectorStoreFactory {
   static create(provider: string, config: VectorStoreConfig): VectorStore {
     switch (provider.toLowerCase()) {
-      case "memory":
-        if (!config.agentBinding || config.agentBinding === undefined) {
-          throw new Error("Agent binding is required for memory vector store");
-        }
-        return getAgentByName(
-          config.agentBinding,
-          config.collectionName
-        ) as unknown as VectorStore;
+      case "cloudflare":
+        return new CloudflareMemory(config as any);
       case "qdrant":
         return new Qdrant(config as any); // Type assertion needed as config is extended
       case "redis":
@@ -95,14 +90,11 @@ export class VectorStoreFactory {
 export class HistoryManagerFactory {
   static create(provider: string, config: HistoryStoreConfig): HistoryManager {
     switch (provider.toLowerCase()) {
-      case "cfagent":
-        if (!config.config.agentBinding || config.config.agentBinding === undefined || !config.config.agentHistoryName || config.config.agentHistoryName === undefined) {
-          throw new Error("Agent binding and history name are required for cfAgent history manager");
-        }
-        return getAgentByName(
-          config.config.agentBinding,
-          config.config.agentHistoryName
-        ) as unknown as HistoryManager;
+      case "cloudflare":
+        return new CloudflareHistoryManager({
+          agentBinding: config.config.agentBinding,
+          agentHistoryName: config.config.agentHistoryName,
+        } as CloudflareHistoryConfig);
       case "supabase":
         return new SupabaseHistoryManager({
           supabaseUrl: config.config.supabaseUrl || "",

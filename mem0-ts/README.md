@@ -48,10 +48,10 @@ In the Cloudflare Workers implementation, the vector store uses a Cloudflare Age
 
 ```javascript
 import type { AgentNamespace } from "agents";
-import type { CfMemoryAgent } from "mem0ai-oss-cfworker";
+import type { CloudflareMemoryAgent } from "mem0ai-oss-cfworker";
 
 export interface Env {
-  MEMORY_AGENT: AgentNamespace<CfMemoryAgent>;
+  MEMORY_AGENT: AgentNamespace<CloudflareMemoryAgent>;
 }
 
 // In your Cloudflare Worker
@@ -87,10 +87,10 @@ In the Cloudflare Workers implementation, the history store uses a separate Clou
 
 ```javascript
 import type { AgentNamespace } from "agents";
-import type { CfHistoryManagerAgent } from "mem0ai-oss-cfworker";
+import type { CloudflareHistoryManagerAgent } from "mem0ai-oss-cfworker";
 
 export interface Env {
-  HISTORY_AGENT: AgentNamespace<CfHistoryManagerAgent>;
+  HISTORY_AGENT: AgentNamespace<CloudflareHistoryManagerAgent>;
 }
 
 // In your Cloudflare Worker
@@ -116,11 +116,11 @@ To enable Cloudflare Agents, you must configure Durable Objects in your Cloudfla
 	"bindings": [
 	  {
 		"name": "MEMORY_AGENT",
-		"class_name": "CfMemoryAgent" // Must be exactly this name
+		"class_name": "CloudflareMemoryAgent" // Must be exactly this name
 	  },
 	  {
 		"name": "HISTORY_AGENT",
-		"class_name": "CfHistoryManagerAgent" // Must be exactly this name
+		"class_name": "CloudflareHistoryManagerAgent" // Must be exactly this name
 	  }
 	]
   },
@@ -128,15 +128,15 @@ To enable Cloudflare Agents, you must configure Durable Objects in your Cloudfla
 	{
 	  "tag": "v1",
 	  "new_sqlite_classes": [
-		"CfMemoryAgent",
-		"CfHistoryManagerAgent"
+		"CloudflareMemoryAgent",
+		"CloudflareHistoryManagerAgent"
 	  ]
 	}
   ]
 }
 ```
 
-- **Durable Objects Configuration**: The `durable_objects.bindings` section defines the bindings for the vector store (`MEMORY_AGENT`) and history store (`HISTORY_AGENT`), linking to the specific agent classes (`CfMemoryAgent` and `CfHistoryManagerAgent`). For more details, see the [Cloudflare Agents configuration documentation](https://developers.cloudflare.com/agents/api-reference/configuration/).
+- **Durable Objects Configuration**: The `durable_objects.bindings` section defines the bindings for the vector store (`MEMORY_AGENT`) and history store (`HISTORY_AGENT`), linking to the specific agent classes (`CloudflareMemoryAgent` and `CloudflareHistoryManagerAgent`). For more details, see the [Cloudflare Agents configuration documentation](https://developers.cloudflare.com/agents/api-reference/configuration/).
 - **Migrations**: The `migrations` section registers the SQLite-based agent classes for use with Durable Objects. For more information on managing migrations, refer to the [Cloudflare Durable Objects migrations documentation](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/).
 
 Ensure your Worker is deployed with these configurations to enable the Cloudflare Agents for both the vector store and history store.

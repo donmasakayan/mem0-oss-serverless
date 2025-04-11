@@ -18,6 +18,6 @@ export * from "./llms/ollama";
 export * from "./vector_stores/base";
 export * from "./vector_stores/qdrant";
 export * from "./vector_stores/redis";
-export * from "./vector_stores/cf-memory-agent";
-export * from "./storage/CfHistoryManagerAgent";
+export * from "./vector_stores/cloudflare";
+export * from "./storage/CloudflareHistoryManager";
 export * from "./utils/factory";

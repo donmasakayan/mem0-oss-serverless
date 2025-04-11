@@ -16,10 +16,10 @@ export class LmStudioStructuredLLM implements LLM {
 
   async generateResponse(
     messages: Message[],
-    responseFormat?: { type: string } | null,
+    responseFormat?: { type: string, jsonSchema?: any } | null,
     tools?: any[],
   ): Promise<string | LLMResponse> {
-    const completion = await this.lmstudio.chat.completions.create({
+    const completion = await this.lmstudio.beta.chat.completions.parse({
       messages: messages.map((msg) => ({
         role: msg.role as "system" | "user" | "assistant",
         content:
@@ -36,6 +36,7 @@ export class LmStudioStructuredLLM implements LLM {
                 name: tool.function.name,
                 description: tool.function.description,
                 parameters: tool.function.parameters,
+                strict: true,
               },
             })),
             tool_choice: "auto" as const,
@@ -43,7 +44,8 @@ export class LmStudioStructuredLLM implements LLM {
         : responseFormat
           ? {
               response_format: {
-                type: responseFormat.type as "text" | "json_object",
+                type: "json_schema" as "text" | "json_object",
+                json_schema: responseFormat.jsonSchema,
               },
             }
           : {}),
@@ -66,7 +68,7 @@ export class LmStudioStructuredLLM implements LLM {
   }
 
   async generateChat(messages: Message[]): Promise<LLMResponse> {
-    const completion = await this.lmstudio.chat.completions.create({
+    const completion = await this.lmstudio.beta.chat.completions.parse({
       messages: messages.map((msg) => ({
         role: msg.role as "system" | "user" | "assistant",
         content:
@@ -78,7 +80,7 @@ export class LmStudioStructuredLLM implements LLM {
     });
     const response = completion.choices[0].message;
     return {
-      content: response.content || "",
+      content: response.parsed || "",
       role: response.role,
     };
   }

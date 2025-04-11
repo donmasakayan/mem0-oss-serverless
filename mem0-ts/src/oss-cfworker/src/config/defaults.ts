@@ -14,7 +14,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
     provider: "memory",
     config: {
       collectionName: "memories",
-      dimension: 1536,
+      dimension: 768,
     },
   },
   llm: {

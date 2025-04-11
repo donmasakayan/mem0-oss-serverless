@@ -229,6 +229,8 @@ export class MemoryGraph {
       tools,
     );
 
+    console.log("searchResults", searchResults);
+
     let entityTypeMap: Record<string, string> = {};
     try {
       if (typeof searchResults !== "string" && searchResults.toolCalls) {

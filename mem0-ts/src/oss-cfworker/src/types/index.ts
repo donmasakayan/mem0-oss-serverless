@@ -1,7 +1,7 @@
 import { AgentNamespace } from "agents";
 import { z } from "zod";
-import { CfMemoryAgent } from "../vector_stores/cf-memory-agent";
-import { CfHistoryManagerAgent } from "../storage";
+import { CloudflareMemoryAgent } from "../vector_stores/cloudflare";
+import { CloudflareHistoryManagerAgent } from "../storage";
 
 export interface MultiModalMessages {
   type: "image_url";
@@ -24,7 +24,7 @@ export interface EmbeddingConfig {
 export interface VectorStoreConfig {
   collectionName: string;
   dimension?: number;
-  agentBinding?: AgentNamespace<CfMemoryAgent>;
+  agentBinding?: AgentNamespace<CloudflareMemoryAgent>;
   [key: string]: any;
 }
 
@@ -34,7 +34,7 @@ export interface HistoryStoreConfig {
     supabaseUrl?: string;
     supabaseKey?: string;
     tableName?: string;
-    agentBinding?: AgentNamespace<CfHistoryManagerAgent>;
+    agentBinding?: AgentNamespace<CloudflareHistoryManagerAgent>;
     agentHistoryName?: string;
   };
 }
@@ -132,6 +132,7 @@ export const MemoryConfigSchema = z.object({
     config: z.object({
       apiKey: z.string(),
       model: z.string().optional(),
+      config: z.record(z.string(), z.any()).optional(),
     }),
   }),
   agentHistoryName: z.string().optional(),

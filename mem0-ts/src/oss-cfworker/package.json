@@ -2,8 +2,8 @@
   "name": "mem0ai-oss-cfworker",
   "version": "1.0.0",
   "description": "TypeScript implementation of mem0 memory system",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest",
