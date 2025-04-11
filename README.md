@@ -109,7 +109,7 @@ const configMemory = {
 
 To enable Cloudflare Agents, you must configure Durable Objects in your Cloudflare Worker’s `wrangler.toml` or `wrangler.jsonc` file. Add the following:
 
-```toml
+```json
 {
   "name": "my-worker",
   "durable_objects": {
