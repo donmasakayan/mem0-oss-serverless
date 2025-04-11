@@ -116,11 +116,11 @@ To enable Cloudflare Agents, you must configure Durable Objects in your Cloudfla
     "bindings": [
       {
         "name": "MEMORY_AGENT",
-        "class_name": "CfMemoryAgent" # Must be exactly this name
+        "class_name": "CfMemoryAgent" // Must be exactly this name
       },
       {
         "name": "HISTORY_AGENT",
-        "class_name": "CfHistoryManagerAgent" # Must be exactly this name
+        "class_name": "CfHistoryManagerAgent" // Must be exactly this name
       }
     ]
   },
