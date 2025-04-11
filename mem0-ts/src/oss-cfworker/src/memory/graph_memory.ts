@@ -54,6 +54,7 @@ export class MemoryGraph {
   private llm: LLM;
   private structuredLlm: LLM;
   private llmProvider: string;
+  private structuredLlmProvider: string;
   private threshold: number;
 
   constructor(config: MemoryConfig) {
@@ -87,9 +88,17 @@ export class MemoryGraph {
       this.llmProvider = this.config.graphStore.llm.provider;
     }
 
+    this.structuredLlmProvider = "openai_structured";
+    if (this.config.llm?.provider) {
+      this.structuredLlmProvider = this.config.llm.provider;
+    }
+    if (this.config.graphStore?.llm?.provider) {
+      this.structuredLlmProvider = this.config.graphStore.llm.provider;
+    }
+
     this.llm = LLMFactory.create(this.llmProvider, this.config.llm.config);
     this.structuredLlm = LLMFactory.create(
-      "openai_structured",
+      this.structuredLlmProvider,
       this.config.llm.config,
     );
     this.threshold = 0.7;

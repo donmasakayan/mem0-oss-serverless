@@ -69,21 +69,20 @@ export class Memory {
     if (this.config.disableHistory) {
       this.db = new DummyHistoryManager();
     } else {
-      // const defaultConfig = {
-      //   provider: "sqlite",
-      //   config: {
-      //     historyDbPath: this.config.historyDbPath || ":memory:",
-      //   },
-      // };
+      const defaultConfig = {
+        provider: "cfagent",
+        config: {
+          agentHistoryName: this.config.agentHistoryName || "memory-history",
+        },
+      };
 
-      // this.db =
-      //   this.config.historyStore && !this.config.disableHistory
-      //     ? HistoryManagerFactory.create(
-      //         this.config.historyStore.provider,
-      //         this.config.historyStore,
-      //       )
-      //     : HistoryManagerFactory.create("sqlite", defaultConfig);
-      this.db = new DummyHistoryManager();
+      this.db =
+        this.config.historyStore && !this.config.disableHistory
+          ? HistoryManagerFactory.create(
+              this.config.historyStore.provider,
+              this.config.historyStore,
+            )
+          : HistoryManagerFactory.create("cfagent", defaultConfig);
     }
 
     this.collectionName = this.config.vectorStore.config.collectionName;

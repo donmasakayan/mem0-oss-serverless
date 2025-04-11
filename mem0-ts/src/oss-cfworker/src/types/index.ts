@@ -1,4 +1,7 @@
+import { AgentNamespace } from "agents";
 import { z } from "zod";
+import { CfMemoryAgent } from "../vector_stores/cf-memory-agent";
+import { CfHistoryManagerAgent } from "../storage";
 
 export interface MultiModalMessages {
   type: "image_url";
@@ -21,16 +24,18 @@ export interface EmbeddingConfig {
 export interface VectorStoreConfig {
   collectionName: string;
   dimension?: number;
+  agentBinding?: AgentNamespace<CfMemoryAgent>;
   [key: string]: any;
 }
 
 export interface HistoryStoreConfig {
   provider: string;
   config: {
-    historyDbPath?: string;
     supabaseUrl?: string;
     supabaseKey?: string;
     tableName?: string;
+    agentBinding?: AgentNamespace<CfHistoryManagerAgent>;
+    agentHistoryName?: string;
   };
 }
 
@@ -70,7 +75,7 @@ export interface MemoryConfig {
   };
   historyStore?: HistoryStoreConfig;
   disableHistory?: boolean;
-  historyDbPath?: string;
+  agentHistoryName?: string;
   customPrompt?: string;
   graphStore?: GraphStoreConfig;
   enableGraph?: boolean;
@@ -129,7 +134,7 @@ export const MemoryConfigSchema = z.object({
       model: z.string().optional(),
     }),
   }),
-  historyDbPath: z.string().optional(),
+  agentHistoryName: z.string().optional(),
   customPrompt: z.string().optional(),
   enableGraph: z.boolean().optional(),
   graphStore: z

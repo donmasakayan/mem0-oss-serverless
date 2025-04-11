@@ -40,9 +40,9 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
     },
   },
   historyStore: {
-    provider: "sqlite",
+    provider: "cfagent",
     config: {
-      historyDbPath: "memory.db",
+      agentHistoryName: "memory-history",
     },
   },
 };

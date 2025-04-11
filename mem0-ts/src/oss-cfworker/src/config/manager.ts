@@ -44,8 +44,8 @@ export class ConfigManager {
             DEFAULT_MEMORY_CONFIG.llm.config.model,
         },
       },
-      historyDbPath:
-        userConfig.historyDbPath || DEFAULT_MEMORY_CONFIG.historyDbPath,
+      agentHistoryName:
+        userConfig.agentHistoryName || DEFAULT_MEMORY_CONFIG.agentHistoryName,
       customPrompt: userConfig.customPrompt,
       graphStore: {
         ...DEFAULT_MEMORY_CONFIG.graphStore,

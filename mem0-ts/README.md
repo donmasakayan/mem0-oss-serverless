@@ -1,65 +1,157 @@
-# Mem0 - The Memory Layer for Your AI Apps
+# Mem0 for Cloudflare Workers
 
-Mem0 is a self-improving memory layer for LLM applications, enabling personalized AI experiences that save costs and delight users. We offer both cloud and open-source solutions to cater to different needs.
+This is a fork of the [Mem0 repository](https://github.com/mem0ai/mem0) by Mem0AI, created to provide a **Cloudflare Workers implementation** of Mem0, based on the original **NodeJS implementation** ([NodeJS quickstart](https://docs.mem0.ai/open-source/node-quickstart)). The original Mem0 project includes both Python and NodeJS versions; this fork modifies only the NodeJS version to enable compatibility with [Cloudflare Workers](https://workers.cloudflare.com/). The NodeJS implementation relied on SQLite in two components, which were incompatible with Cloudflare Workers due to the use of the `sqlite3` library. This fork replaces those with [Cloudflare Agents](https://developers.cloudflare.com/agents/), a change specific to this repo and unlikely to be merged into the main project. Separately, this fork includes additional LLM support not originally present in the NodeJS implementation, though these enhancements may be contributed to the main Mem0 project and could be removed from this fork in the future.
 
-See the complete [OSS Docs](https://docs.mem0.ai/open-source-typescript/quickstart).
-See the complete [Platform API Reference](https://docs.mem0.ai/api-reference/overview).
+## Cloudflare Workers Implementation
 
-## 1. Installation
+To enable Mem0 to run on Cloudflare Workers, the [NodeJS implementation](https://docs.mem0.ai/open-source/node-quickstart) required significant changes to its SQLite-based components. The following modifications were made:
 
-For the open-source version, you can install the Mem0 package using npm:
+- **In-Memory Vector Database**: The NodeJS implementation used SQLite for an [in-memory vector database](https://docs.mem0.ai/components/vectordbs/config) to store and query vectors. The Cloudflare Workers implementation replaces it with a dedicated [Cloudflare Agent](https://developers.cloudflare.com/agents/), utilizing the [SQLite API](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api) provided by [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/). This ensures vector storage and retrieval are compatible with Cloudflare's serverless environment.
+- **History Store**: The [history store](https://docs.mem0.ai/open-source/node-quickstart#history-store), which also relied on SQLite to persist historical data, has been reimplemented using a separate [Cloudflare Agent](https://developers.cloudflare.com/agents/) with its own [SQLite storage](https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/#sql-api). This maintains the history store's functionality while adhering to Cloudflare Workers' runtime constraints.
+- **Preserved Core Functionality**: Beyond these database changes, the core logic and features of the NodeJS implementation remain intact, ensuring the Cloudflare Workers implementation delivers the same capabilities as the original, adapted for Cloudflare's infrastructure.
 
-```bash
-npm i mem0ai
+These changes are specific to this fork and tailored for Cloudflare Workers compatibility, making them unlikely to be integrated into the main Mem0 repository.
+
+## Additional LLM Support
+
+In addition to the Cloudflare Workers-specific changes, this fork introduces support for LLMs that were not available in the NodeJS implementation as of April 11, 2025, but were supported in the Python version. These additions may be contributed to the main Mem0 project, and if merged there, they could be removed from this fork to focus solely on the Cloudflare Workers implementation. The added LLM support includes:
+
+- **Embedding Support**: Added support for [Together.ai](https://docs.mem0.ai/components/embedders/overview) for embedding tasks.
+- **LLM Support**: Added support for [LM Studio](https://docs.mem0.ai/components/llms/overview) for both normal and structured responses.
+- **Neo4j Graph Memory**: The LM Studio structured response implementation supports [Neo4j Graph Memory](https://docs.mem0.ai/open-source/graph_memory/overview).
+
+**Note**: These LLM enhancements align the NodeJS version with features already present in the Python version. If these changes are incorporated into the main Mem0 repository, this fork may discontinue maintaining them to focus exclusively on Cloudflare Workers compatibility.
+
+## Using the Cloudflare Workers Implementation
+
+To use the Cloudflare Workers implementation, you need to configure the vector store and history store to use [Cloudflare Agents](https://developers.cloudflare.com/agents/) instead of SQLite, and set up your Cloudflare Worker environment with the necessary Durable Objects bindings. Below are the steps to update your configuration and deploy the application.
+
+### Vector Store Configuration
+
+The original NodeJS implementation used SQLite for the vector store. Here’s the old configuration:
+
+```javascript
+const configMemory = {
+  vectorStore: {
+    provider: 'memory',
+    config: {
+      collectionName: 'memories',
+      dimension: 1536,
+    },
+  },
+};
 ```
 
-## 2. API Key Setup
+In the Cloudflare Workers implementation, the vector store uses a Cloudflare Agent. Update your configuration as follows:
 
-For the cloud offering, sign in to [Mem0 Platform](https://app.mem0.ai/dashboard/api-keys) to obtain your API Key.
+```javascript
+import type { AgentNamespace } from "agents";
+import type { CfMemoryAgent } from "mem0ai-oss-cfworker";
 
-## 3. Client Features
+export interface Env {
+  MEMORY_AGENT: AgentNamespace<CfMemoryAgent>;
+}
 
-### Cloud Offering
+// In your Cloudflare Worker
+const configMemory = {
+  vectorStore: {
+    provider: "memory",
+    config: {
+      collectionName: 'memories', // Can be any name; used as the Cloudflare Agent ID
+      dimension: 1536,
+      agentBinding: this.env.MEMORY_AGENT,
+    },
+  },
+};
+```
 
-The cloud version provides a comprehensive set of features, including:
+### History Store Configuration
 
-- **Memory Operations**: Perform CRUD operations on memories.
-- **Search Capabilities**: Search for relevant memories using advanced filters.
-- **Memory History**: Track changes to memories over time.
-- **Error Handling**: Robust error handling for API-related issues.
-- **Async/Await Support**: All methods return promises for easy integration.
+The original NodeJS implementation used SQLite for the history store. Here’s the old configuration:
 
-### Open-Source Offering
+```javascript
+const configMemory = {
+  historyStore: {
+    provider: 'sqlite',
+    config: {
+      historyDbPath: "memory.db",
+    },
+  },
+  historyDbPath: "memory.db", // Optional default
+};
+```
 
-The open-source version includes the following top features:
+In the Cloudflare Workers implementation, the history store uses a separate Cloudflare Agent. Update your configuration as follows:
 
-- **Memory Management**: Add, update, delete, and retrieve memories.
-- **Vector Store Integration**: Supports various vector store providers for efficient memory retrieval.
-- **LLM Support**: Integrates with multiple LLM providers for generating responses.
-- **Customizable Configuration**: Easily configure memory settings and providers.
-- **SQLite Storage**: Use SQLite for memory history management.
+```javascript
+import type { AgentNamespace } from "agents";
+import type { CfHistoryManagerAgent } from "mem0ai-oss-cfworker";
 
-## 4. Memory Operations
+export interface Env {
+  HISTORY_AGENT: AgentNamespace<CfHistoryManagerAgent>;
+}
 
-Mem0 provides a simple and customizable interface for performing memory operations. You can create long-term and short-term memories, search for relevant memories, and manage memory history.
+// In your Cloudflare Worker
+const configMemory = {
+  historyStore: {
+    provider: 'cfagent',
+    config: {
+      agentBinding: this.env.HISTORY_AGENT,
+      agentHistoryName: "memory_history", // Can be any name; used as the Cloudflare Agent ID
+    },
+  },
+};
+```
 
-## 5. Error Handling
+### Cloudflare Worker Environment Setup
 
-The MemoryClient throws errors for any API-related issues. You can catch and handle these errors effectively.
+To enable Cloudflare Agents, you must configure Durable Objects in your Cloudflare Worker’s `wrangler.toml` or `wrangler.jsonc` file. Add the following:
 
-## 6. Using with async/await
+```toml
+{
+  "name": "my-worker",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MEMORY_AGENT",
+        "class_name": "CfMemoryAgent" # Must be exactly this name
+      },
+      {
+        "name": "HISTORY_AGENT",
+        "class_name": "CfHistoryManagerAgent" # Must be exactly this name
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "CfMemoryAgent",
+        "CfHistoryManagerAgent"
+      ]
+    }
+  ]
+}
+```
 
-All methods of the MemoryClient return promises, allowing for seamless integration with async/await syntax.
+- **Durable Objects Configuration**: The `durable_objects.bindings` section defines the bindings for the vector store (`MEMORY_AGENT`) and history store (`HISTORY_AGENT`), linking to the specific agent classes (`CfMemoryAgent` and `CfHistoryManagerAgent`). For more details, see the [Cloudflare Agents configuration documentation](https://developers.cloudflare.com/agents/api-reference/configuration/).
+- **Migrations**: The `migrations` section registers the SQLite-based agent classes for use with Durable Objects. For more information on managing migrations, refer to the [Cloudflare Durable Objects migrations documentation](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/).
 
-## 7. Testing the Client
+Ensure your Worker is deployed with these configurations to enable the Cloudflare Agents for both the vector store and history store.
 
-To test the MemoryClient in a Node.js environment, you can create a simple script to verify the functionality of memory operations.
+## Getting Started
 
-## Getting Help
+For detailed instructions on how to use Mem0, including its features, configuration, and APIs for both the Python and [NodeJS versions](https://docs.mem0.ai/open-source/node-quickstart), please refer to the [original Mem0 repository](https://github.com/mem0ai/mem0). The original README provides comprehensive guidance on setting up and using Mem0.
 
-If you have any questions or need assistance, please reach out to us:
+## Contributing
 
-- Email: founders@mem0.ai
-- [Join our discord community](https://mem0.ai/discord)
-- [Join our slack community](https://mem0.ai/slack)
-- GitHub Issues: [Report bugs or request features](https://github.com/mem0ai/mem0ai-node/issues)
+Contributions are welcome! For suggestions, bug reports, or improvements to the Cloudflare Workers implementation, please open an issue or submit a pull request. Contributions related to the additional LLM support may be better directed to the [main Mem0 repository](https://github.com/mem0ai/mem0), as those features could be merged there. Be sure to check the original repository’s contribution guidelines.
+
+## License
+
+This fork is licensed under the same terms as the original Mem0 repository. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Thanks to the [Mem0AI team](https://github.com/mem0ai) for creating the original Mem0 project, including its Python and [NodeJS versions](https://docs.mem0.ai/open-source/node-quickstart).
+- Built with [Cloudflare Workers](https://workers.cloudflare.com/), [Cloudflare Agents](https://developers.cloudflare.com/agents/), and [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/).

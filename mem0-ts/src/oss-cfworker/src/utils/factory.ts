@@ -1,10 +1,10 @@
 import { OpenAIEmbedder } from "../embeddings/openai";
 import { OllamaEmbedder } from "../embeddings/ollama";
+import { TogetherEmbedder } from "../embeddings/together";
 import { OpenAILLM } from "../llms/openai";
 import { OpenAIStructuredLLM } from "../llms/openai_structured";
 import { AnthropicLLM } from "../llms/anthropic";
 import { GroqLLM } from "../llms/groq";
-import { MemoryVectorStore } from "../vector_stores/memory";
 import {
   EmbeddingConfig,
   HistoryStoreConfig,
@@ -18,12 +18,14 @@ import { Qdrant } from "../vector_stores/qdrant";
 import { RedisDB } from "../vector_stores/redis";
 import { OllamaLLM } from "../llms/ollama";
 import { SupabaseDB } from "../vector_stores/supabase";
-import { SQLiteManager } from "../storage/SQLiteManager";
 import { MemoryHistoryManager } from "../storage/MemoryHistoryManager";
 import { SupabaseHistoryManager } from "../storage/SupabaseHistoryManager";
 import { HistoryManager } from "../storage/base";
 import { GoogleEmbedder } from "../embeddings/google";
 import { GoogleLLM } from "../llms/google";
+import { getAgentByName } from "agents";
+import { LmStudioLLM } from "../llms/lmstudio";
+import { LmStudioStructuredLLM } from "../llms/lmstudio_structured";
 
 export class EmbedderFactory {
   static create(provider: string, config: EmbeddingConfig): Embedder {
@@ -34,6 +36,8 @@ export class EmbedderFactory {
         return new OllamaEmbedder(config);
       case "google":
         return new GoogleEmbedder(config);
+      case "together":
+        return new TogetherEmbedder(config);
       default:
         throw new Error(`Unsupported embedder provider: ${provider}`);
     }
@@ -55,6 +59,10 @@ export class LLMFactory {
         return new OllamaLLM(config);
       case "google":
         return new GoogleLLM(config);
+      case "lmstudio":
+        return new LmStudioLLM(config);
+      case "lmstudio_structured":
+        return new LmStudioStructuredLLM(config);
       default:
         throw new Error(`Unsupported LLM provider: ${provider}`);
     }
@@ -65,7 +73,13 @@ export class VectorStoreFactory {
   static create(provider: string, config: VectorStoreConfig): VectorStore {
     switch (provider.toLowerCase()) {
       case "memory":
-        return new MemoryVectorStore(config);
+        if (!config.agentBinding || config.agentBinding === undefined) {
+          throw new Error("Agent binding is required for memory vector store");
+        }
+        return getAgentByName(
+          config.agentBinding,
+          config.collectionName
+        ) as unknown as VectorStore;
       case "qdrant":
         return new Qdrant(config as any); // Type assertion needed as config is extended
       case "redis":
@@ -81,8 +95,14 @@ export class VectorStoreFactory {
 export class HistoryManagerFactory {
   static create(provider: string, config: HistoryStoreConfig): HistoryManager {
     switch (provider.toLowerCase()) {
-      case "sqlite":
-        return new SQLiteManager(config.config.historyDbPath || ":memory:");
+      case "cfagent":
+        if (!config.config.agentBinding || config.config.agentBinding === undefined || !config.config.agentHistoryName || config.config.agentHistoryName === undefined) {
+          throw new Error("Agent binding and history name are required for cfAgent history manager");
+        }
+        return getAgentByName(
+          config.config.agentBinding,
+          config.config.agentHistoryName
+        ) as unknown as HistoryManager;
       case "supabase":
         return new SupabaseHistoryManager({
           supabaseUrl: config.config.supabaseUrl || "",
