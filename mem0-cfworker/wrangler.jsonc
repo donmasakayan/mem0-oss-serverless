@@ -1,9 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mem0-cfworker",
-  "compatibility_date": "2024-04-01",
-  "main": "./src/index.tsx",
-  "assets": {
-    "directory": "./dist"
-  }
-}
