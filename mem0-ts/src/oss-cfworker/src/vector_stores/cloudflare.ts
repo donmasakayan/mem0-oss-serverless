@@ -1,312 +1,267 @@
-import {
-	Agent,
-	AgentContext,
-	AgentNamespace,
-} from "agents";
+import type { VectorizeIndex } from "@cloudflare/workers-types";
+import type {
+	SearchFilters,
+	VectorStoreConfig,
+	VectorStoreResult,
+} from "../types";
+import type { VectorStore } from "./base";
 
-import { VectorStore } from "./base";
-import { SearchFilters, VectorStoreConfig, VectorStoreResult } from "../types";
-import path from "path";
-import { getAgentByName } from "agents";
-
-interface MemoryVector {
-	id: string;
-	vector: number[];
-	payload: Record<string, any>;
-  }
-
-interface Env {
-
+// Define the environment interface expected by the class constructor
+export interface VectorizeEnv {
+	VECTORIZE: VectorizeIndex;
 }
-  
-export class CloudflareMemoryAgent extends Agent<Env> {
+
+/**
+ * =======================================
+ * === Vectorize Store Implementation ===
+ * =======================================
+ * Connects to Cloudflare Vectorize for vector storage and search.
+ */
+export class VectorizeStore implements VectorStore {
+	// === Private Properties ===
+	private VECTORIZE: VectorizeIndex;
 	private dimension: number;
+	// Note: userId management is not directly applicable to Vectorize in the same way
+	// as the memory store's SQLite implementation. Filtering by user should be
+	// handled via metadata in search queries.
 
-	constructor(ctx: AgentContext, env: Env) {
-		super(ctx, env);
-		this.dimension = 768;
-	}
-
-	private async init() {
-	  // Create a table if it doesn't exist
-	  await this.sql`
-		CREATE TABLE IF NOT EXISTS vectors (
-			id TEXT PRIMARY KEY,
-			vector BLOB NOT NULL,
-			payload TEXT NOT NULL
-		)
-	  `;
-
-	  await this.sql`
-		CREATE TABLE IF NOT EXISTS memory_migrations (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id TEXT NOT NULL UNIQUE
-		)
-	  `;
-	}
-
-	private async run(sql: TemplateStringsArray | string, ...params: (string | number | boolean | null)[]): Promise<void> {
-		try {
-			await this.sql(sql as TemplateStringsArray, ...params);
-		} catch (e) {
-			throw this.onError(e);
+	// === Constructor ===
+	constructor(config: VectorStoreConfig) {
+		// --- Input validation ---
+		if (!config.env || !config.env.VECTORIZE) {
+			console.error(
+				"Cloudflare Vectorize binding missing and here's the config",
+				config,
+			);
+			throw new Error(
+				"Cloudflare Vectorize index binding (VECTORIZE) is required in env.",
+			);
 		}
+
+		// --- Initialization ---
+		this.VECTORIZE = config.env.VECTORIZE;
+		// Default to OpenAI dimension if not provided, though Vectorize often infers this.
+		// It might be useful for input validation.
+		this.dimension = config.dimension || 1536;
 	}
 
-	private async all(sql: TemplateStringsArray | string, ...params: (string | number | boolean | null)[]): Promise<any[]> {
-		try {
-			return await this.sql(sql as TemplateStringsArray, ...params);
-		} catch (e) {
-			throw this.onError(e);
-		}
-	}
+	// === Public Methods: VectorStore Interface Implementation ===
 
-	private async getOne(sql: TemplateStringsArray | string, ...params: (string | number | boolean | null)[]): Promise<any> {
-		try {
-			return await this.sql(sql as TemplateStringsArray, ...params)[0];
-		} catch (e) {
-			throw this.onError(e);
-		}
-	}
-
-	 private cosineSimilarity(a: number[], b: number[]): number {
-		let dotProduct = 0;
-		let normA = 0;
-		let normB = 0;
-		for (let i = 0; i < a.length; i++) {
-		  dotProduct += a[i] * b[i];
-		  normA += a[i] * a[i];
-		  normB += b[i] * b[i];
-		}
-		return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-	  }
-	
-	  private filterVector(vector: MemoryVector, filters?: SearchFilters): boolean {
-		if (!filters) return true;
-		return Object.entries(filters).every(
-		  ([key, value]) => vector.payload[key] === value,
-		);
-	  }
-
+	/**
+	 * ---------------------------------------
+	 * Insert vectors into the index.
+	 * ---------------------------------------
+	 */
 	async insert(
 		vectors: number[][],
 		ids: string[],
 		payloads: Record<string, any>[],
 	): Promise<void> {
+		// --- Create Vector objects for insertion ---
+		const vectorizeVectors = [];
 		for (let i = 0; i < vectors.length; i++) {
+			// --- Validate vector dimension ---
 			if (vectors[i].length !== this.dimension) {
-				throw new Error(
-					`Vector dimension mismatch. Expected ${this.dimension}, got ${vectors[i].length}`,
+				console.warn(
+					`Vector dimension mismatch for ID ${ids[i]}. Expected ${this.dimension}, got ${vectors[i].length}. Skipping insertion for this vector.`,
 				);
+				// Or throw error if strict validation is required:
+				// throw new Error(`Vector dimension mismatch for ID ${ids[i]}. Expected ${this.dimension}, got ${vectors[i].length}`);
+				continue; // Skip this vector
 			}
-			const vectorText = JSON.stringify(vectors[i]);
-			await this.run`INSERT OR REPLACE INTO vectors (id, vector, payload) VALUES (${ids[i]}, ${vectorText}, ${JSON.stringify(payloads[i])})`;
+
+			vectorizeVectors.push({
+				id: ids[i],
+				values: vectors[i],
+				metadata: payloads[i],
+			});
+		}
+
+		// --- Perform batch insertion if vectors are valid ---
+		if (vectorizeVectors.length > 0) {
+			await this.VECTORIZE.insert(vectorizeVectors);
 		}
 	}
 
+	/**
+	 * ---------------------------------------
+	 * Search for similar vectors.
+	 * ---------------------------------------
+	 */
 	async search(
 		query: number[],
 		limit: number = 10,
 		filters?: SearchFilters,
 	): Promise<VectorStoreResult[]> {
+		// --- Validate query vector dimension ---
 		if (query.length !== this.dimension) {
 			throw new Error(
 				`Query dimension mismatch. Expected ${this.dimension}, got ${query.length}`,
 			);
 		}
 
-		const rows = await this.all`SELECT * FROM vectors`;
-		const results: VectorStoreResult[] = [];
+		// --- Perform vector search ---
+		console.log("query", JSON.stringify(query));
+		const results = await this.VECTORIZE.query(query, {
+			topK: limit,
+			filter: filters,
+			// includeValues: false, // Don't need the vector values in search results
+			// includeMetadata: true, // Metadata (payload) is needed
+		});
 
-		for (const row of rows) {
-			const vector = JSON.parse(row.vector);
-			const payload = JSON.parse(row.payload);
-			const memoryVector: MemoryVector = {
-				id: row.id,
-				vector,
-				payload,
-			};
-
-			if (this.filterVector(memoryVector, filters)) {
-				const score = this.cosineSimilarity(query, vector);
-				results.push({
-					id: memoryVector.id,
-					payload: memoryVector.payload,
-					score,
-				});
-			}
-		}
-
-		results.sort((a, b) => (b.score || 0) - (a.score || 0));
-    	return results.slice(0, limit);
+		// --- Format results ---
+		// Vectorize query returns matches with vectors; we need to map to VectorStoreResult
+		return results.matches.map(match => ({
+			id: match.id,
+			payload: match.metadata ?? {},
+			score: match.score, // Vectorize provides the score
+		}));
 	}
 
+	/**
+	 * ---------------------------------------
+	 * Get a specific vector by its ID.
+	 * ---------------------------------------
+	 */
 	async get(vectorId: string): Promise<VectorStoreResult | null> {
-		const row = await this.getOne`SELECT * FROM vectors WHERE id = ${vectorId}`;
-		if (!row) return null;
+		// --- Retrieve vector by ID ---
+		// Vectorize getByIds returns an array of vectors
+		const vectors = await this.VECTORIZE.getByIds([vectorId]);
 
-		const payload = JSON.parse(row.payload);
+		// --- Process result ---
+		if (vectors.length === 0) {
+			return null;
+		}
+
+		// --- Return formatted result ---
+		const vector = vectors[0];
 		return {
-			id: row.id,
-			payload,
+			id: vector.id,
+			payload: vector.metadata ?? {},
+			// 'get' interface doesn't include score
 		};
 	}
 
+	/**
+	 * ---------------------------------------
+	 * Update an existing vector (uses upsert).
+	 * ---------------------------------------
+	 */
 	async update(
 		vectorId: string,
 		vector: number[],
 		payload: Record<string, any>,
 	): Promise<void> {
+		// --- Validate vector dimension ---
 		if (vector.length !== this.dimension) {
 			throw new Error(
-				`Vector dimension mismatch. Expected ${this.dimension}, got ${vector.length}`,
+				`Vector dimension mismatch for update. Expected ${this.dimension}, got ${vector.length}`,
 			);
 		}
-		const vectorText = JSON.stringify(vector);
-		await this.run`UPDATE vectors SET vector = ${vectorText}, payload = ${JSON.stringify(payload)} WHERE id = ${vectorId}`;
+
+		// --- Perform upsert ---
+		// Vectorize uses upsert for updates
+		await this.VECTORIZE.upsert([
+			{
+				id: vectorId,
+				values: vector,
+				metadata: payload,
+			},
+		]);
 	}
 
+	/**
+	 * ---------------------------------------
+	 * Delete a vector by its ID.
+	 * ---------------------------------------
+	 */
 	async delete(vectorId: string): Promise<void> {
-		await this.run`DELETE FROM vectors WHERE id = ${vectorId}`;
+		// --- Perform deletion by ID ---
+		await this.VECTORIZE.deleteByIds([vectorId]);
 	}
 
+	/**
+	 * ---------------------------------------
+	 * Delete the entire collection (Not Supported).
+	 * ---------------------------------------
+	 * Deleting a Vectorize index is an infrastructure operation.
+	 */
 	async deleteCol(): Promise<void> {
-		await this.run`DROP TABLE IF EXISTS vectors`;
-		await this.init();
+		// --- Log warning ---
+		console.warn(
+			"deleteCol is not supported for VectorizeStore. Index deletion must be done via Cloudflare dashboard or Wrangler CLI.",
+		);
+		// --- Return promise ---
+		return Promise.resolve();
 	}
 
+	/**
+	 * ---------------------------------------
+	 * List vectors, potentially filtered.
+	 * ---------------------------------------
+	 * NOTE: Vectorize is optimized for similarity search, not arbitrary listing.
+	 * This implementation uses a query with a zero vector and filters.
+	 * It may not be efficient for listing large numbers of vectors and
+	 * the total count returned is the number of items found up to the limit,
+	 * not the absolute total matching the filter in the index.
+	 */
 	async list(
 		filters?: SearchFilters,
 		limit: number = 100,
 	): Promise<[VectorStoreResult[], number]> {
-		const rows = await this.all`SELECT * FROM vectors`;
-		const results: VectorStoreResult[] = [];
+		// --- Create a zero vector for querying ---
+		// Querying with a zero vector might return arbitrary vectors matching the filter,
+		// but the order isn't guaranteed or necessarily meaningful for 'listing'.
+		const zeroVector = new Array(this.dimension).fill(0);
 
-		for (const row of rows) {
-			const payload = JSON.parse(row.payload);
-			const memoryVector: MemoryVector = {
-				id: row.id,
-				vector: JSON.parse(row.vector),
-				payload,
-			};
-
-			if (this.filterVector(memoryVector, filters)) {
-				results.push({
-					id: memoryVector.id,
-					payload: memoryVector.payload,
-				});
-			}
-		}
-
-		return [results.slice(0, limit), results.length];
-	}
-
-	async getUserId(): Promise<string> {
-		const row = await this.getOne`SELECT user_id FROM memory_migrations LIMIT 1`;
-		if (row) {
-			return row.user_id;
-		}
-
-		// Generate a random user_id if none exists
-		const randomUserId =
-			Math.random().toString(36).substring(2, 15) +
-			Math.random().toString(36).substring(2, 15);
-		await this.run`INSERT INTO memory_migrations (user_id) VALUES (${randomUserId})`;
-		return randomUserId;
-	}
-
-	async setUserId(userId: string): Promise<void> {
-		await this.run`DELETE FROM memory_migrations`;
-		await this.run`INSERT INTO memory_migrations (user_id) VALUES (${userId})`;
-	}
-
-	async initialize(config: VectorStoreConfig): Promise<void> {
-		this.dimension = config.dimension || 768;
-		await this.init();
-	}
-  }
-
- 
-  
-  interface MemoryVector {
-	id: string;
-	vector: number[];
-	payload: Record<string, any>;
-  }
-  
-  
-  export class CloudflareMemory implements VectorStore {
-	private agent!: DurableObjectStub<CloudflareMemoryAgent>;
-	private agentBinding: AgentNamespace<CloudflareMemoryAgent>;
-	private collectionName: string;
-	private dimension: number;
-
-	constructor(private config: VectorStoreConfig) {
-		if (!config.agentBinding || !config.collectionName) {
-			throw new Error("Agent binding and collection name are required");
-		}
-		this.agentBinding = config.agentBinding;
-		this.collectionName = config.collectionName;
-		this.dimension = config.dimension || 768;
-		this.initialize().catch(console.error);
-	}
-
-	async insert(
-	  vectors: number[][],
-	  ids: string[],
-	  payloads: Record<string, any>[],
-	): Promise<void> {
-	  await (this.agent as any).insert(vectors, ids, payloads);
-	}
-  
-	async search(
-	  query: number[],
-	  limit: number = 10,
-	  filters?: SearchFilters,
-	): Promise<VectorStoreResult[]> {
-	  return (this.agent as any).search(query, limit, filters) as Promise<VectorStoreResult[]>;
-	}
-  
-	async get(vectorId: string): Promise<VectorStoreResult | null> {
-	  return (this.agent as any).get(vectorId) as Promise<VectorStoreResult | null>;
-	}
-  
-	async update(
-	  vectorId: string,
-	  vector: number[],
-	  payload: Record<string, any>,
-	): Promise<void> {
-	  await (this.agent as any).update(vectorId, vector, payload);
-	}
-  
-	async delete(vectorId: string): Promise<void> {
-	  await (this.agent as any).delete(vectorId);
-	}
-  
-	async deleteCol(): Promise<void> {
-	  await (this.agent as any).deleteCol();
-	}
-  
-	async list(
-	  filters?: SearchFilters,
-	  limit: number = 100,
-	): Promise<[VectorStoreResult[], number]> {
-	  return (this.agent as any).list(filters, limit) as Promise<[VectorStoreResult[], number]>;
-	}
-  
-	async getUserId(): Promise<string> {
-	  return (this.agent as any).getUserId() as Promise<string>;
-	}
-  
-	async setUserId(userId: string): Promise<void> {
-	  await (this.agent as any).setUserId(userId);
-	}
-  
-	async initialize(): Promise<void> {
-		this.agent = await getAgentByName(this.agentBinding, this.collectionName);
-		(this.agent as any).initialize({
-			dimension: this.dimension,
+		// --- Perform query ---
+		const results = await this.VECTORIZE.query(zeroVector, {
+			topK: limit,
+			filter: filters,
+			// includeValues: false,
+			// includeMetadata: true,
 		});
+
+		// --- Format results ---
+		const vectorStoreResults = results.matches.map(match => ({
+			id: match.id,
+			payload: match.metadata ?? {},
+			// 'list' interface doesn't typically include score
+		}));
+
+		// --- Return results and count found ---
+		// Vectorize query doesn't give total count matching filter, only count returned.
+		return [vectorStoreResults, vectorStoreResults.length];
 	}
-  }
-  
+
+	/**
+	 * ---------------------------------------
+	 * Get User ID (Not Applicable).
+	 * ---------------------------------------
+	 */
+	async getUserId(): Promise<string> {
+		// --- Throw error ---
+		throw new Error("getUserId is not applicable for VectorizeStore.");
+	}
+
+	/**
+	 * ---------------------------------------
+	 * Set User ID (Not Applicable).
+	 * ---------------------------------------
+	 */
+	async setUserId(userId: string): Promise<void> {
+		// --- Throw error ---
+		throw new Error("setUserId is not applicable for VectorizeStore.");
+	}
+
+	/**
+	 * ---------------------------------------
+	 * Initialize (No-op for Vectorize).
+	 * ---------------------------------------
+	 * Index initialization is handled externally.
+	 */
+	async initialize(): Promise<void> {
+		// --- No operation needed ---
+		return Promise.resolve();
+	}
+}

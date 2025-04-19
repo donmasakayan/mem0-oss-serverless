@@ -1,71 +1,77 @@
 import OpenAI from "openai";
-import { LLM, LLMResponse } from "./base";
-import { LLMConfig, Message } from "../types";
+import type { LLMConfig, Message } from "../types";
+import type { LLM, LLMResponse } from "./base";
 
 export class OpenAILLM implements LLM {
-  private openai: OpenAI;
-  private model: string;
+	private openai: OpenAI;
+	private model: string;
+	private config: LLMConfig;
 
-  constructor(config: LLMConfig) {
-    this.openai = new OpenAI({ apiKey: config.apiKey });
-    this.model = config.model || "gpt-4o-mini";
-  }
+	constructor(config: LLMConfig) {
+		this.openai = new OpenAI({
+			apiKey: config.apiKey,
+			baseURL: config.baseUrl,
+		});
+		this.model = config.model || "gpt-4o-mini";
+		this.config = config;
+	}
 
-  async generateResponse(
-    messages: Message[],
-    responseFormat?: { type: string },
-    tools?: any[],
-  ): Promise<string | LLMResponse> {
-    const completion = await this.openai.chat.completions.create({
-      messages: messages.map((msg) => {
-        const role = msg.role as "system" | "user" | "assistant";
-        return {
-          role,
-          content:
-            typeof msg.content === "string"
-              ? msg.content
-              : JSON.stringify(msg.content),
-        };
-      }),
-      model: this.model,
-      response_format: responseFormat as { type: "text" | "json_object" },
-      ...(tools && { tools, tool_choice: "auto" }),
-    });
+	async generateResponse(
+		messages: Message[],
+		responseFormat?: { type: string },
+		tools?: any[],
+	): Promise<string | LLMResponse> {
+		console.log("generateResponse", this.config);
+		const completion = await this.openai.chat.completions.create({
+			messages: messages.map(msg => {
+				const role = msg.role as "system" | "user" | "assistant";
+				return {
+					role,
+					content:
+						typeof msg.content === "string"
+							? msg.content
+							: JSON.stringify(msg.content),
+				};
+			}),
+			model: this.model,
+			response_format: responseFormat as { type: "text" | "json_object" },
+			...(tools && { tools, tool_choice: "auto" }),
+		});
 
-    const response = completion.choices[0].message;
+		const response = completion.choices[0].message;
 
-    if (response.tool_calls) {
-      return {
-        content: response.content || "",
-        role: response.role,
-        toolCalls: response.tool_calls.map((call) => ({
-          name: call.function.name,
-          arguments: call.function.arguments,
-        })),
-      };
-    }
+		if (response.tool_calls) {
+			return {
+				content: response.content || "",
+				role: response.role,
+				toolCalls: response.tool_calls.map(call => ({
+					name: call.function.name,
+					arguments: call.function.arguments,
+				})),
+			};
+		}
 
-    return response.content || "";
-  }
+		return response.content || "";
+	}
 
-  async generateChat(messages: Message[]): Promise<LLMResponse> {
-    const completion = await this.openai.chat.completions.create({
-      messages: messages.map((msg) => {
-        const role = msg.role as "system" | "user" | "assistant";
-        return {
-          role,
-          content:
-            typeof msg.content === "string"
-              ? msg.content
-              : JSON.stringify(msg.content),
-        };
-      }),
-      model: this.model,
-    });
-    const response = completion.choices[0].message;
-    return {
-      content: response.content || "",
-      role: response.role,
-    };
-  }
+	async generateChat(messages: Message[]): Promise<LLMResponse> {
+		const completion = await this.openai.chat.completions.create({
+			messages: messages.map(msg => {
+				const role = msg.role as "system" | "user" | "assistant";
+				return {
+					role,
+					content:
+						typeof msg.content === "string"
+							? msg.content
+							: JSON.stringify(msg.content),
+				};
+			}),
+			model: this.model,
+		});
+		const response = completion.choices[0].message;
+		return {
+			content: response.content || "",
+			role: response.role,
+		};
+	}
 }
